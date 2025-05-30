@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,10 +10,13 @@ import {
   XCircle,
   Clock,
   AlertTriangle,
-  Printer
+  Printer,
+  Wrench
 } from "lucide-react"
 import { format } from "date-fns"
 import { useUpdateOrcamento } from "@/hooks/useOrcamentos"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +39,7 @@ interface OrcamentoCardProps {
 
 export const OrcamentoCard = ({ orcamento, onView, onEdit, onDelete, onImprimir }: OrcamentoCardProps) => {
   const updateOrcamento = useUpdateOrcamento()
+  const queryClient = useQueryClient()
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -70,11 +73,25 @@ export const OrcamentoCard = ({ orcamento, onView, onEdit, onDelete, onImprimir 
 
   const statusOptions = ["Pendente", "Aprovado", "Reprovado", "Cancelado"]
 
-  const handleStatusChange = (newStatus: string) => {
-    updateOrcamento.mutate({
-      id: orcamento.id,
-      status: newStatus as any
-    })
+  const handleStatusChange = async (newStatus: string) => {
+    const previousStatus = orcamento.status
+    
+    try {
+      await updateOrcamento.mutateAsync({
+        id: orcamento.id,
+        status: newStatus as any
+      })
+      
+      // Se mudou para Aprovado, mostra toast informando sobre a criação da OS
+      if (newStatus === "Aprovado" && previousStatus !== "Aprovado") {
+        toast.success("Orçamento aprovado! Uma ordem de serviço foi criada automaticamente na Oficina.")
+        // Invalida queries da oficina para atualizar os dados
+        queryClient.invalidateQueries({ queryKey: ["ordens_servico"] })
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error)
+      toast.error("Erro ao atualizar status do orçamento")
+    }
   }
 
   // Determina as informações do veículo
@@ -167,8 +184,13 @@ export const OrcamentoCard = ({ orcamento, onView, onEdit, onDelete, onImprimir 
                 </AlertDialogContent>
               </AlertDialog>
               {orcamento.status === "Aprovado" && (
-                <Button size="sm" className="bg-secondary hover:bg-secondary/90">
-                  Gerar OS
+                <Button 
+                  size="sm" 
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => window.location.href = '/oficina'}
+                >
+                  <Wrench className="w-4 h-4 mr-1" />
+                  Ver na Oficina
                 </Button>
               )}
             </div>
